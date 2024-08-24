@@ -1,0 +1,17 @@
+{
+  "name": "swc-plugin-static-i18n",
+  "version": "0.1.0",
+  "author": {
+    "name": "Aaron Imming",
+    "email": "aaim@protonmail.com",
+    "url": "https://github.com/aaimio"
+  },
+  "license": "MIT",
+  "keywords": [
+    "swc-plugin"
+  ],
+  "main": "target/wasm32-wasi/release/swc-plugin-static-i18n.wasm",
+  "scripts": {
+    "build": "cargo build-wasi --release"
+  }
+}

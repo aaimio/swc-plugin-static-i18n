@@ -1,0 +1,4 @@
+[toolchain]
+channel = "1.80.1"
+targets = [ "wasm32-wasi", "wasm32-unknown-unknown" ]
+profile = "minimal"
