@@ -1,12 +1,15 @@
 use serde::Deserialize;
 use serde_json;
 use std::collections::HashMap;
-use swc_core::ecma::{
-    ast::{CallExpr, Callee, Expr, ExprOrSpread, Lit, Program},
-    transforms::testing::test,
-    visit::{as_folder, FoldWith, VisitMut, VisitMutWith},
+
+use swc_core::{
+    ecma::{
+        ast::{CallExpr, Callee, Expr, ExprOrSpread, Lit, Program},
+        transforms::testing::{test, test_inline},
+        visit::{as_folder, FoldWith, VisitMut, VisitMutWith},
+    },
+    plugin::{plugin_transform, proxies::TransformPluginProgramMetadata},
 };
-use swc_core::plugin::{plugin_transform, proxies::TransformPluginProgramMetadata};
 
 #[derive(Deserialize)]
 pub struct TransformVisitor {
@@ -20,7 +23,7 @@ impl VisitMut for TransformVisitor {
 
         if let Callee::Expr(expr) = &call_expr.callee {
             if let Expr::Ident(ident) = &**expr {
-                if ident.sym != *self.function_name {
+                if ident.sym != self.function_name {
                     return;
                 }
 
@@ -39,25 +42,30 @@ impl VisitMut for TransformVisitor {
 
 #[plugin_transform]
 pub fn process_transform(program: Program, metadata: TransformPluginProgramMetadata) -> Program {
-    let config: TransformVisitor = serde_json::from_str(
+    let config = serde_json::from_str::<TransformVisitor>(
         &metadata
             .get_transform_plugin_config()
             .expect("Invalid config"),
     )
     .expect("Failed to deserialize config");
 
-    program.fold_with(&mut as_folder(TransformVisitor {
-        function_name: config.function_name,
-        strings: config.strings,
-    }))
+    program.fold_with(&mut as_folder(TransformVisitor { ..config }))
 }
 
-test!(
+test_inline!(
     Default::default(),
     |_| {
         let mut translations = HashMap::new();
 
-        translations.insert("Hello World".to_string(), "Hallo Wereld".to_string());
+        translations.insert(
+            "Hello World. Goodbye Mars.".to_string(),
+            "Hallo Welt. Auf Wiedersehen Mars.".to_string(),
+        );
+
+        translations.insert(
+            "You are {{ age }} years old.".to_string(),
+            "Du bist {{ age }} Jahre alt.".to_string(),
+        );
 
         as_folder(TransformVisitor {
             function_name: "translate".to_string(),
@@ -65,7 +73,14 @@ test!(
         })
     },
     complex_transform,
-    // Where output? https://github.com/swc-project/website/commit/4f494565822140e8fad498416e205ceda7e6e86f#commitcomment-134090267
-    "translate(\"Hello Mars\");",
-    ok_if_code_eq
+    // Input
+    r#"
+    const a = translate("Hello World. Goodbye Mars.");
+    const b = translate("You are {{ age }} years old.", { age: 25 });
+    "#,
+    // Output
+    r#"
+    const a = translate("Hallo Welt. Auf Wiedersehen Mars.");
+    const b = translate("Du bist {{ age }} Jahre alt.", { age: 25 });
+    "#
 );
